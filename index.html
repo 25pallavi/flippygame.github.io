@@ -5,12 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Flappy Bird Game</title>
   <style>
-    #topScoresList {
-        font-size: 18px;
-        text-align: left;
-        width: 82px;
-        margin: 0 auto;
-    }
     body {
       margin: 0;
       display: flex;
@@ -77,6 +71,14 @@
     .close-btn:hover {
       background: #2980b9;
     }
+    input {
+      padding: 8px;
+      font-size: 16px;
+      margin-top: 10px;
+      width: 80%;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+    }
     @keyframes fadeIn {
       from { opacity: 0; transform: scale(0.9); }
       to { opacity: 1; transform: scale(1); }
@@ -88,6 +90,15 @@
 
   <div id="scoreBoard">
     <button onclick="showTopScores()">View Top 3 Scores</button>
+  </div>
+
+  <!-- Player Name Modal -->
+  <div id="playerModal" class="modal" style="display:flex;">
+    <div class="modal-content">
+      <h2>Enter Player Name</h2>
+      <input type="text" id="playerNameInput" placeholder="Your name">
+      <button class="close-btn" onclick="startGame()">Start</button>
+    </div>
   </div>
 
   <!-- Game Over Modal -->
@@ -114,10 +125,11 @@
     const ctx = canvas.getContext("2d");
 
     let frames, gravity, bird, pipes, pipeWidth, pipeGap, score, highScore, gameRunning, pipeSpeed;
+    let playerName = "";
+    let scoreHistory = {};
 
-    // Load scores
-    highScore = localStorage.getItem("flappyHighScore") || 0;
-    let scoreHistory = JSON.parse(localStorage.getItem("flappyScoreHistory")) || [];
+    // Load saved scores for all players
+    scoreHistory = JSON.parse(localStorage.getItem("flappyPlayers")) || {};
 
     function resetGame() {
       frames = 0;
@@ -127,6 +139,8 @@
       score = 0;
       pipeSpeed = 2;
       gameRunning = true;
+
+      highScore = scoreHistory[playerName]?.highScore || 0;
 
       bird = {
         x: 50,
@@ -203,24 +217,29 @@
     function drawScore() {
       ctx.fillStyle = "black";
       ctx.font = "20px Arial";
-      ctx.fillText("Score: " + score, 10, 25);
-      ctx.fillText("Best: " + highScore, 10, 50);
+      ctx.fillText("Player: " + playerName, 10, 20);
+      ctx.fillText("Score: " + score, 10, 45);
+      ctx.fillText("Best: " + highScore, 10, 70);
     }
 
     function gameOver() {
       gameRunning = false;
 
-      // Update scores
-      if (score > highScore) {
-        highScore = score;
-        localStorage.setItem("flappyHighScore", highScore);
+      // Update player score history
+      if (!scoreHistory[playerName]) {
+        scoreHistory[playerName] = { highScore: 0, history: [] };
       }
-      scoreHistory.push(score);
-      localStorage.setItem("flappyScoreHistory", JSON.stringify(scoreHistory));
 
-      // Show modal instead of alert
+      if (score > scoreHistory[playerName].highScore) {
+        scoreHistory[playerName].highScore = score;
+      }
+      scoreHistory[playerName].history.push(score);
+
+      localStorage.setItem("flappyPlayers", JSON.stringify(scoreHistory));
+
+      // Show modal
       document.getElementById("finalScore").textContent = "Your Score: " + score;
-      document.getElementById("bestScore").textContent = "Best Score: " + highScore;
+      document.getElementById("bestScore").textContent = "Best Score: " + scoreHistory[playerName].highScore;
       document.getElementById("gameOverModal").style.display = "flex";
     }
 
@@ -244,51 +263,24 @@
       requestAnimationFrame(loop);
     }
 
-    // Flap control
-   // Flap control with keyboard
-document.addEventListener("keydown", e => {
-  if (e.code === "Space" && !e.repeat) {
-    bird.flap();
-  }
-});
-
-// Flap control with mouse click
-canvas.addEventListener("mousedown", () => {
-  bird.flap();
-});
-canvas.addEventListener("touchstart", () => {
-  bird.flap();
-});
-
-// Optional: Continuous flap while holding mouse
-let mouseHeld = false;
-
-canvas.addEventListener("mousedown", () => {
-  mouseHeld = true;
-});
-canvas.addEventListener("mouseup", () => {
-  mouseHeld = false;
-});
-
-canvas.addEventListener("touchstart", () => {
-  mouseHeld = true;
-});
-canvas.addEventListener("touchend", () => {
-  mouseHeld = false;
-});
-
-// In your loop(), add this:
-if (mouseHeld) {
-  bird.flap();
-}
+    // Controls
+    document.addEventListener("keydown", e => {
+      if (e.code === "Space" && !e.repeat) bird.flap();
+    });
+    canvas.addEventListener("mousedown", () => bird.flap());
+    canvas.addEventListener("touchstart", () => bird.flap());
 
     // Show Top 3 Scores Modal
     function showTopScores() {
-      let top3 = [...scoreHistory].sort((a, b) => b - a).slice(0, 3);
+      if (!scoreHistory[playerName]) {
+        alert("No scores for this player yet!");
+        return;
+      }
+      let top3 = [...scoreHistory[playerName].history].sort((a, b) => b - a).slice(0, 3);
       document.getElementById("topScoresList").innerHTML = 
-        (top3[0] ? "First: " + top3[0] : "1. -") + "<br>" +
-        (top3[1] ? "Second: " + top3[1] : "2. -") + "<br>" +
-        (top3[2] ? "Third: " + top3[2] : "3. -");
+        (top3[0] ? "Rank 1: " + top3[0] : "Rank 1: -") + "<br>" +
+        (top3[1] ? "Rank 2: " + top3[1] : "Rank 2: -") + "<br>" +
+        (top3[2] ? "Rank 3: " + top3[2] : "Rank 3: -");
       document.getElementById("topScoresModal").style.display = "flex";
     }
 
@@ -296,9 +288,18 @@ if (mouseHeld) {
       document.getElementById("topScoresModal").style.display = "none";
     }
 
-    // Start
-    resetGame();
-    loop();
+    // Start with player name input
+    function startGame() {
+      let nameInput = document.getElementById("playerNameInput").value.trim();
+      if (nameInput === "") {
+        alert("Please enter your name!");
+        return;
+      }
+      playerName = nameInput;
+      document.getElementById("playerModal").style.display = "none";
+      resetGame();
+      loop();
+    }
   </script>
 </body>
 </html>
