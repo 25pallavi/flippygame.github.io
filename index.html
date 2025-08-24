@@ -1,42 +1,43 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Flappy Bird Game</title>
   <style>
     body {
-      margin: 0;
       display: flex;
       justify-content: center;
       align-items: center;
       height: 100vh;
-      background: skyblue;
+      margin: 0;
+      background: linear-gradient(to bottom, #87CEEB, #ffffff);
       font-family: Arial, sans-serif;
-      flex-direction: column;
+    }
+    #gameWrapper {
+      position: relative;
     }
     canvas {
-      background: linear-gradient(to bottom, #87CEEB, #fff);
-      border: 2px solid #000;
+      border: 3px solid #000;
+      background: #cce7ff;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      display: block;
     }
     #scoreBoard {
-      margin-top: 10px;
+      position: absolute;
+      top: 12px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 24px;
+      font-weight: bold;
+      color: #222;
+      background: rgba(255, 255, 255, 0.85);
+      padding: 6px 14px;
+      border-radius: 8px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.2);
     }
-    button {
-      margin: 5px;
-      padding: 8px 14px;
-      font-size: 16px;
-      border: none;
-      border-radius: 6px;
-      cursor: pointer;
-      background: #2ecc71;
-      color: white;
-      transition: 0.2s;
-    }
-    button:hover {
-      background: #27ae60;
-    }
-    /* Modal Styling */
+    /* Modal */
     .modal {
       display: none;
       position: fixed;
@@ -52,52 +53,59 @@
       padding: 20px;
       border-radius: 12px;
       text-align: center;
-      width: 300px;
-      box-shadow: 0 4px 10px rgba(0,0,0,0.3);
-      animation: fadeIn 0.3s;
+      min-width: 280px;
+      max-width: 400px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
     }
-    .modal h2 {
+    .modal-content h2 {
       margin-top: 0;
-      color: #333;
     }
-    .modal p {
-      font-size: 18px;
-      margin: 10px 0;
-    }
-    .close-btn {
-      margin-top: 10px;
-      background: #3498db;
-    }
-    .close-btn:hover {
-      background: #2980b9;
-    }
-    input {
+    input[type="text"] {
       padding: 8px;
-      font-size: 16px;
       margin-top: 10px;
       width: 80%;
       border: 1px solid #ccc;
       border-radius: 6px;
+      font-size: 16px;
     }
-    @keyframes fadeIn {
-      from { opacity: 0; transform: scale(0.9); }
-      to { opacity: 1; transform: scale(1); }
+    button {
+      padding: 8px 16px;
+      margin-top: 12px;
+      border: none;
+      background: #007bff;
+      color: white;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 16px;
+    }
+    button:hover {
+      background: #0056b3;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+    }
+    th, td {
+      padding: 6px;
+      border-bottom: 1px solid #ddd;
+      text-align: left;
     }
   </style>
 </head>
 <body>
-  <canvas id="gameCanvas" width="320" height="480"></canvas>
-
-  <div id="scoreBoard">
-    <button onclick="showTopScores()">View Top 3 Scores</button>
+  <div id="gameWrapper">
+    <div id="scoreBoard">Score: 0</div>
+    <canvas id="gameCanvas" width="400" height="500"></canvas>
   </div>
 
-  <!-- Player Name Modal -->
-  <div id="playerModal" class="modal" style="display:flex;">
+  <!-- Name Input Modal -->
+  <div id="nameModal" class="modal" style="display:flex;">
     <div class="modal-content">
-      <h2>Enter Player Name</h2>
-      <input type="text" id="playerNameInput" placeholder="Your name">
-      <button class="close-btn" onclick="startGame()">Start</button>
+      <h2>Enter Your Name</h2>
+      <input type="text" id="playerNameInput" placeholder="Your name..." />
+      <br />
+      <button onclick="startGameWithName()">Start Game</button>
     </div>
   </div>
 
@@ -106,8 +114,8 @@
     <div class="modal-content">
       <h2>Game Over</h2>
       <p id="finalScore"></p>
-      <p id="bestScore"></p>
-      <button class="close-btn" onclick="restartGame()">Restart</button>
+      <button onclick="restartGame()">Play Again</button>
+      <button onclick="showTopScores()">View Top Scores</button>
     </div>
   </div>
 
@@ -115,191 +123,148 @@
   <div id="topScoresModal" class="modal">
     <div class="modal-content">
       <h2>🏆 Top 3 Scores</h2>
-      <p id="topScoresList"></p>
-      <button class="close-btn" onclick="closeTopScores()">Close</button>
+      <table>
+        <thead>
+          <tr>
+            <th>Player</th>
+            <th>Score</th>
+          </tr>
+        </thead>
+        <tbody id="topScoresList"></tbody>
+      </table>
+      <button onclick="closeTopScores()">Close</button>
     </div>
   </div>
 
   <script>
     const canvas = document.getElementById("gameCanvas");
     const ctx = canvas.getContext("2d");
+    const scoreBoard = document.getElementById("scoreBoard");
+    const nameModal = document.getElementById("nameModal");
+    const gameOverModal = document.getElementById("gameOverModal");
+    const topScoresModal = document.getElementById("topScoresModal");
 
-    let frames, gravity, bird, pipes, pipeWidth, pipeGap, score, highScore, gameRunning, pipeSpeed;
-    let playerName = "";
-    let scoreHistory = {};
+    let bird, gravity, lift, score, pipes, gameInterval, playerName, scoreHistory;
 
-    // Load saved scores for all players
-    scoreHistory = JSON.parse(localStorage.getItem("flappyPlayers")) || {};
+    scoreHistory = JSON.parse(localStorage.getItem("scoreHistory")) || [];
 
-    function resetGame() {
-      frames = 0;
-      gravity = 0.18;
-      pipeWidth = 50;
-      pipeGap = 110;
+    function startGameWithName() {
+      const input = document.getElementById("playerNameInput").value.trim();
+      playerName = input || "Player";
+      nameModal.style.display = "none";
+      startGame();
+    }
+
+    function startGame() {
+      bird = { x: 50, y: 150, width: 20, height: 20, velocity: 0 };
+      gravity = 0.6;
+      lift = -10;
       score = 0;
-      pipeSpeed = 2;
-      gameRunning = true;
-
-      highScore = scoreHistory[playerName]?.highScore || 0;
-
-      bird = {
-        x: 50,
-        y: 150,
-        w: 30,
-        h: 30,
-        dy: 0,
-        jump: 3.8,
-        draw() {
-          ctx.fillStyle = "yellow";
-          ctx.fillRect(this.x, this.y, this.w, this.h);
-        },
-        update() {
-          this.dy += gravity;
-          this.y += this.dy;
-          if (this.y + this.h > canvas.height) {
-            gameOver();
-          }
-        },
-        flap() {
-          this.dy = -this.jump;
-        }
-      };
       pipes = [];
+      scoreBoard.textContent = "Score: 0";
+
+      if (gameInterval) clearInterval(gameInterval);
+      gameInterval = setInterval(update, 20);
+
+      if (pipes.length === 0) createPipe();
     }
 
-    function drawPipes() {
+    function createPipe() {
+      let gap = 130;
+      let topHeight = Math.floor(Math.random() * (canvas.height - gap - 60)) + 30;
+      pipes.push({ x: canvas.width, y: 0, width: 50, height: topHeight, passed: false });
+      pipes.push({ x: canvas.width, y: topHeight + gap, width: 50, height: canvas.height - topHeight - gap, passed: false });
+    }
+
+    function update() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // Bird physics
+      bird.velocity += gravity;
+      bird.y += bird.velocity;
+      ctx.fillStyle = "yellow";
+      ctx.fillRect(bird.x, bird.y, bird.width, bird.height);
+
+      // Bird hits ground/ceiling
+      if (bird.y + bird.height > canvas.height || bird.y < 0) {
+        endGame();
+      }
+
+      // Pipes
+      if (pipes.length === 0 || pipes[pipes.length - 1].x < canvas.width - 200) {
+        createPipe();
+      }
+
       for (let i = 0; i < pipes.length; i++) {
         let p = pipes[i];
+        let speed = 2 + score * 0.03; // gradually faster
+        p.x -= speed;
         ctx.fillStyle = "green";
-        ctx.fillRect(p.x, 0, pipeWidth, p.top);
-        ctx.fillRect(p.x, p.top + pipeGap, pipeWidth, canvas.height - p.top - pipeGap);
-      }
-    }
-
-    function updatePipes() {
-      if (frames % 100 === 0) {
-        let top = Math.random() * (canvas.height - pipeGap - 80) + 20;
-        pipes.push({ x: canvas.width, top: top, passed: false });
-      }
-      for (let i = 0; i < pipes.length; i++) {
-        let p = pipes[i];
-        p.x -= pipeSpeed;
+        ctx.fillRect(p.x, p.y, p.width, p.height);
 
         // Collision
         if (
-          bird.x < p.x + pipeWidth &&
-          bird.x + bird.w > p.x &&
-          (bird.y < p.top || bird.y + bird.h > p.top + pipeGap)
+          bird.x < p.x + p.width &&
+          bird.x + bird.width > p.x &&
+          bird.y < p.y + p.height &&
+          bird.y + bird.height > p.y
         ) {
-          gameOver();
+          endGame();
         }
 
-        // Score update
-        if (!p.passed && p.x + pipeWidth < bird.x) {
+        // Score when passing pipe
+        if (!p.passed && p.x + p.width < bird.x) {
           score++;
           p.passed = true;
-
-          // Increase difficulty
-          if (score % 5 === 0) {
-            pipeSpeed += 0.5;
-            if (pipeGap > 90) pipeGap -= 2;
-          }
-        }
-
-        // Remove offscreen pipes
-        if (p.x + pipeWidth < 0) {
-          pipes.splice(i, 1);
-          i--;
         }
       }
+
+      pipes = pipes.filter(p => p.x + p.width > 0);
+
+      scoreBoard.textContent = "Score: " + score;
     }
 
-    function drawScore() {
-      ctx.fillStyle = "black";
-      ctx.font = "20px Arial";
-      ctx.fillText("Player: " + playerName, 10, 20);
-      ctx.fillText("Score: " + score, 10, 45);
-      ctx.fillText("Best: " + highScore, 10, 70);
-    }
-
-    function gameOver() {
-      gameRunning = false;
-
-      // Update player score history
-      if (!scoreHistory[playerName]) {
-        scoreHistory[playerName] = { highScore: 0, history: [] };
-      }
-
-      if (score > scoreHistory[playerName].highScore) {
-        scoreHistory[playerName].highScore = score;
-      }
-      scoreHistory[playerName].history.push(score);
-
-      localStorage.setItem("flappyPlayers", JSON.stringify(scoreHistory));
-
-      // Show modal
-      document.getElementById("finalScore").textContent = "Your Score: " + score;
-      document.getElementById("bestScore").textContent = "Best Score: " + scoreHistory[playerName].highScore;
-      document.getElementById("gameOverModal").style.display = "flex";
+    function endGame() {
+      clearInterval(gameInterval);
+      document.getElementById("finalScore").textContent = `${playerName}, your Score: ${score}`;
+      scoreHistory.push({ name: playerName, score: score });
+      localStorage.setItem("scoreHistory", JSON.stringify(scoreHistory));
+      gameOverModal.style.display = "flex";
     }
 
     function restartGame() {
-      document.getElementById("gameOverModal").style.display = "none";
-      resetGame();
+      gameOverModal.style.display = "none";
+      startGame();
     }
 
-    function loop() {
-      if (!gameRunning) return requestAnimationFrame(loop);
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-      bird.update();
-      updatePipes();
-
-      bird.draw();
-      drawPipes();
-      drawScore();
-
-      frames++;
-      requestAnimationFrame(loop);
-    }
-
-    // Controls
-    document.addEventListener("keydown", e => {
-      if (e.code === "Space" && !e.repeat) bird.flap();
-    });
-    canvas.addEventListener("mousedown", () => bird.flap());
-    canvas.addEventListener("touchstart", () => bird.flap());
-
-    // Show Top 3 Scores Modal
     function showTopScores() {
-      if (!scoreHistory[playerName]) {
-        alert("No scores for this player yet!");
-        return;
+      let top3 = [...scoreHistory].sort((a, b) => b.score - a.score).slice(0, 3);
+      let tableRows = top3.map(item => {
+        let highlight = (item.name === playerName) ? "font-weight:bold; color:#007bff;" : "";
+        return `<tr>
+                  <td style="${highlight}">${item.name}</td>
+                  <td style="${highlight}">${item.score}</td>
+                </tr>`;
+      }).join("");
+      if (top3.length === 0) {
+        tableRows = `<tr><td colspan="2" style="text-align:center;">No scores yet</td></tr>`;
       }
-      let top3 = [...scoreHistory[playerName].history].sort((a, b) => b - a).slice(0, 3);
-      document.getElementById("topScoresList").innerHTML = 
-        (top3[0] ? "Rank 1: " + top3[0] : "Rank 1: -") + "<br>" +
-        (top3[1] ? "Rank 2: " + top3[1] : "Rank 2: -") + "<br>" +
-        (top3[2] ? "Rank 3: " + top3[2] : "Rank 3: -");
-      document.getElementById("topScoresModal").style.display = "flex";
+      document.getElementById("topScoresList").innerHTML = tableRows;
+      topScoresModal.style.display = "flex";
     }
 
     function closeTopScores() {
-      document.getElementById("topScoresModal").style.display = "none";
+      topScoresModal.style.display = "none";
     }
 
-    // Start with player name input
-    function startGame() {
-      let nameInput = document.getElementById("playerNameInput").value.trim();
-      if (nameInput === "") {
-        alert("Please enter your name!");
-        return;
+    document.addEventListener("keydown", e => {
+      if (e.code === "Space") {
+        bird.velocity = lift;
       }
-      playerName = nameInput;
-      document.getElementById("playerModal").style.display = "none";
-      resetGame();
-      loop();
-    }
+    });
+    document.addEventListener("mousedown", () => {
+      bird.velocity = lift;
+    });
   </script>
 </body>
 </html>
